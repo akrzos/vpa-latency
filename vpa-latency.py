@@ -18,10 +18,7 @@
 
 
 # TODO:
-# * Capture Key Metrics
-# * Determine transition times
 # * Determine transition vs API Request Time
-# * Determine if recommendation change was scale up or scale down and latency
 # * Output a report card
 
 
@@ -172,12 +169,12 @@ def main():
     csv_file.write("timestamp,cpu.lowerBound,cpu.target,cpu.uncappedTarget,cpu.upperBound,memory.lowerBound,memory.target,memory.uncappedTarget,memory.upperBound\n")
 
   with open(transitions_csv_file, "w") as csv_file:
-    csv_file.write("timestamp,\n")
+    csv_file.write("timestamp,old_ts,metric,type,latency,new_value,old_value,change\n")
 
   monitor_data = {
     "api_requests": [],
     "polls": [],
-    "recommendation_transitions": []
+    "transitions": []
   }
 
   logger.info("###############################################################################")
@@ -246,8 +243,8 @@ def main():
 
   logger.info("###############################################################################")
   logger.info("Recommendation Transitions")
-  # for item in monitor_data["recommendation_transitions"]:
-  #   logger.info(item)
+  for item in monitor_data["transitions"]:
+    logger.info(item)
 
 
 if __name__ == "__main__":

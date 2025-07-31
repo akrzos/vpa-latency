@@ -13,6 +13,8 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+
+from collections import OrderedDict
 from datetime import datetime
 import json
 import logging
@@ -25,6 +27,11 @@ import traceback
 
 
 logger = logging.getLogger("vpa-latency")
+
+
+cpu_monitor_keys = ["cpu.lowerBound", "cpu.target", "cpu.uncappedTarget", "cpu.upperBound"]
+memory_monitor_keys = ["memory.lowerBound", "memory.target", "memory.uncappedTarget", "memory.upperBound"]
+all_monitor_keys = cpu_monitor_keys + memory_monitor_keys
 
 
 # Normalize the memory recommendation from VPA
@@ -106,17 +113,12 @@ class VPAMonitor(Thread):
       else:
         logger.warning("Missing status fields in VPA data")
 
-      sample = {
-        "timestamp": start_poll_time,
-        "cpu.lowerBound": 0,
-        "cpu.target": 0,
-        "cpu.uncappedTarget": 0,
-        "cpu.upperBound": 0,
-        "memory.lowerBound": 0,
-        "memory.target": 0,
-        "memory.uncappedTarget": 0,
-        "memory.upperBound": 0
-      }
+      sample = OrderedDict()
+      sample["timestamp"] = start_poll_time
+      # Set inital sample to 0
+      for key in all_monitor_keys:
+        sample[key] = 0
+
       if recommendations:
         sample["cpu.lowerBound"] = recommendations["lowerBound"]["cpu"]
         sample["cpu.target"] = recommendations["target"]["cpu"]
@@ -136,8 +138,49 @@ class VPAMonitor(Thread):
             datetime.utcfromtimestamp(sample["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
         ))
 
-        # TODO Calculate if a transition occured
-        # TODO Determine if we have transition due to api request
+      # TODO Determine if we have transition due to api request
+      # Only monitor memory for transitions due to cpu not normalized
+      if len(self.monitor_data["polls"]) == 1:
+        logger.debug("Setting original values for transition data")
+        orig_mon_data = OrderedDict()
+        for key in memory_monitor_keys:
+          orig_mon_data[key] = sample[key]
+        for key in memory_monitor_keys:
+          orig_mon_data["{}.ts".format(key)] = sample["timestamp"]
+      else:
+        logger.debug("Checking for transition")
+        for key in memory_monitor_keys:
+          if orig_mon_data[key] != sample[key]:
+            t_type = "ScaleUp"
+            if orig_mon_data[key] > sample[key]:
+              t_type = "ScaleDown"
+            t_latency = round(sample["timestamp"] - orig_mon_data["{}.ts".format(key)], 2)
+            t_change = sample[key] - orig_mon_data[key]
+            transition = {
+              "timestamp": sample["timestamp"],
+              "old_ts": orig_mon_data["{}.ts".format(key)],
+              "metric": key,
+              "type": t_type,
+              "latency": t_latency,
+              "new_value": sample[key],
+              "old_value": orig_mon_data[key],
+              "change": t_change
+            }
+            logger.info("Detected {} for {}, latency {}, from {} to {}".format(t_type, key, t_latency, orig_mon_data[key], sample[key]))
+
+            self.monitor_data["transitions"].append(transition)
+
+            with open(self.transitions_csv, "a") as csv_file:
+              csv_file.write("{},{},{},{},{},{},{},{}\n".format(
+                  datetime.utcfromtimestamp(transition["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  datetime.utcfromtimestamp(transition["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  transition["metric"], transition["type"], transition["latency"], transition["new_value"],
+                  transition["old_value"],transition["change"]
+              ))
+
+            # Set new original value and timestamp after data is recorded
+            orig_mon_data[key] = sample[key]
+            orig_mon_data["{}.ts".format(key)] = sample["timestamp"]
 
       end_poll_time = time.time()
       poll_time = round(end_poll_time - start_poll_time, 1)
