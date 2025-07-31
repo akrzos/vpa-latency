@@ -16,8 +16,16 @@ oc label no vm00010 node-role.kubernetes.io/workload7=
 oc label no vm00011 node-role.kubernetes.io/workload8=
 oc label no vm00012 node-role.kubernetes.io/workload9=
 
-# Create the vpa-stress namespaces and deployments
-oc create -f deployments/1-gohttp-stress.yml
+# gohttp-stress
+# Creates a NS, Deployment, Svc, Route for each gohttp-stressng pod
+oc create -f deployments/gohttp-stress-1.yml
+oc create -f deployments/gohttp-stress-2.yml
+oc create -f deployments/gohttp-stress-3.yml
+oc create -f deployments/gohttp-stress-4.yml
+oc create -f deployments/gohttp-stress-5.yml
+oc create -f deployments/gohttp-stress-6.yml
+
+# stress-ng pods where env vars control stressng sequence
 # oc create -f deployments/1-underutil.yml
 # oc create -f deployments/2-overutil.yml
 # oc create -f deployments/3-standard.yml
