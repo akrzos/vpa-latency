@@ -1,0 +1,71 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  annontations:
+    openshift.io/node-selector: ''
+  name: vpa-stress-3-standard
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress
+  namespace: vpa-stress-3-standard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress
+  template:
+    metadata:
+      labels:
+        app: stress
+    spec:
+      containers:
+      - name: stress
+        image: quay.io/akrzos/stress-ng:latest
+        command:
+        - /bin/bash
+        - -c
+        - |
+          echo "VPA stress initial sleep ${INITIAL_SLEEP}"
+          sleep ${INITIAL_SLEEP}
+          while true; do
+            if [ "$S1_ENABLE" == "true" ]; then
+              echo "Starting 1st stress-ng in background with ${S1_MEMORY} memory usage and timeout ${S1_TIMEOUT}"
+              stress-ng --vm 1 --vm-bytes ${S1_MEMORY} --vm-keep --timeout ${S1_TIMEOUT} &
+            fi
+            echo "Delaying start of 2nd stress-ng by ${S2_DELAY}"
+            sleep ${S2_DELAY}
+            echo "Starting 2nd stress-ng with ${S2_MEMORY} memory usage and timeout ${S2_TIMEOUT}"
+            stress-ng --vm 1 --vm-bytes ${S2_MEMORY} --vm-keep --timeout ${S2_TIMEOUT}
+            echo "Post stress-ng sleep ${POST_SLEEP}"
+            sleep ${POST_SLEEP}
+            if [ "$S1_ENABLE" == "true" ]; then
+              echo "Waiting for backgrounded 1st stress-ng"
+              wait
+            fi
+          done
+        resources:
+          requests:
+            memory: 5Gi
+            cpu: 1500m
+        env:
+        - name: INITIAL_SLEEP
+          value: "90"
+        - name: S1_ENABLE
+          value: "true"
+        - name: S1_MEMORY
+          value: "3G"
+        - name: S1_TIMEOUT
+          value: "600s"
+        - name: S2_DELAY
+          value: "300"
+        - name: S2_MEMORY
+          value: "4G"
+        - name: S2_TIMEOUT
+          value: "300s"
+        - name: POST_SLEEP
+          value: "0"
+      nodeSelector:
+        node-role.kubernetes.io/workload3: ""

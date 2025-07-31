@@ -1,0 +1,76 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  annontations:
+    openshift.io/node-selector: ''
+  name: vpa-gohttp-stress-1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gohttp
+  namespace: vpa-gohttp-stress-1
+spec:
+  selector:
+    app: stress
+  ports:
+    - protocol: TCP
+      name: port-8000
+      port: 8080
+      targetPort: 8000
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: gohttp
+  namespace: vpa-gohttp-stress-1
+spec:
+  tls:
+    termination: edge
+  to:
+    name: gohttp
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stress
+  namespace: vpa-gohttp-stress-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stress
+  template:
+    metadata:
+      labels:
+        app: stress
+    spec:
+      containers:
+      - name: stress
+        image: quay.io/akrzos/gohttp:latest
+        imagePullPolicy: Always
+        resources:
+          requests:
+            memory: 1Gi
+            cpu: 1
+        ports:
+        - containerPort: 8000
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8000"
+        - name: LISTEN_DELAY_SECONDS
+          value: "0"
+        - name: LIVENESS_DELAY_SECONDS
+          value: "0"
+        - name: READINESS_DELAY_SECONDS
+          value: "0"
+        - name: RESPONSE_DELAY_MILLISECONDS
+          value: "0"
+        - name: LIVENESS_SUCCESS_MAX
+          value: "0"
+        - name: READINESS_SUCCESS_MAX
+          value: "0"
+      nodeSelector:
+        node-role.kubernetes.io/workload1: ""
