@@ -27,6 +27,41 @@ import traceback
 logger = logging.getLogger("vpa-latency")
 
 
+# Normalize the memory recommendation from VPA
+def normalize_memory(raw_memory):
+  stripped = raw_memory.strip()
+  # Define multipliers for SI (decimal) and IEC (binary) prefixes
+  multipliers = {
+      'k': 1000,
+      'M': 1000**2,
+      'G': 1000**3,
+      'T': 1000**4,
+      'P': 1000**5,
+      'E': 1000**6,
+      'Ki': 1024,
+      'Mi': 1024**2,
+      'Gi': 1024**3,
+      'Ti': 1024**4,
+      'Pi': 1024**5,
+      'Ei': 1024**6,
+  }
+
+  # Handle case where memory value passed is just "bytes"
+  try:
+      return int(stripped)
+  except ValueError:
+      pass  # Pass to determine suffix and convert
+
+  logger.debug("Converting memory value '{}'".format(stripped))
+  for suffix in sorted(multipliers.keys(), key=len, reverse=True):
+    if stripped.endswith(suffix):
+      numeric_part = stripped[:-len(suffix)]
+      return int(float(numeric_part) * multipliers[suffix])
+
+  logger.error("Invalid memory format for '{}'".format(stripped))
+  return -1
+
+
 class VPAMonitor(Thread):
   def __init__(self, namespace, vpa_name, monitor_data, polls_csv, transitions_csv, poll_interval):
     super(VPAMonitor, self).__init__()
@@ -49,6 +84,7 @@ class VPAMonitor(Thread):
       rc, output = command(oc_cmd, retries=3, no_log=True)
       if rc != 0:
         logger.error("vpa-latency, oc get vpa rc: {}".format(rc))
+        vpa_data = {}
       else:
         try:
           vpa_data = json.loads(output)
@@ -70,31 +106,38 @@ class VPAMonitor(Thread):
       else:
         logger.warning("Missing status fields in VPA data")
 
+      sample = {
+        "timestamp": start_poll_time,
+        "cpu.lowerBound": 0,
+        "cpu.target": 0,
+        "cpu.uncappedTarget": 0,
+        "cpu.upperBound": 0,
+        "memory.lowerBound": 0,
+        "memory.target": 0,
+        "memory.uncappedTarget": 0,
+        "memory.upperBound": 0
+      }
       if recommendations:
-        sample = {
-          "timestamp": datetime.utcfromtimestamp(start_poll_time).strftime('%Y-%m-%dT%H:%M:%SZ'),
-          "cpu.lowerBound": recommendations["lowerBound"]["cpu"],
-          "cpu.target": recommendations["target"]["cpu"],
-          "cpu.uncappedTarget": recommendations["uncappedTarget"]["cpu"],
-          "cpu.upperBound": recommendations["upperBound"]["cpu"],
-          "memory.lowerBound": recommendations["lowerBound"]["memory"],
-          "memory.target": recommendations["target"]["memory"],
-          "memory.uncappedTarget": recommendations["uncappedTarget"]["memory"],
-          "memory.upperBound": recommendations["upperBound"]["memory"]
-        }
-        self.monitor_data["polls"].append(sample)
+        sample["cpu.lowerBound"] = recommendations["lowerBound"]["cpu"]
+        sample["cpu.target"] = recommendations["target"]["cpu"]
+        sample["cpu.uncappedTarget"] = recommendations["uncappedTarget"]["cpu"]
+        sample["cpu.upperBound"] = recommendations["upperBound"]["cpu"]
+        sample["memory.lowerBound"] = normalize_memory(recommendations["lowerBound"]["memory"])
+        sample["memory.target"] = normalize_memory(recommendations["target"]["memory"])
+        sample["memory.uncappedTarget"] = normalize_memory(recommendations["uncappedTarget"]["memory"])
+        sample["memory.upperBound"] = normalize_memory(recommendations["upperBound"]["memory"])
 
-        # Write csv data
-        with open(self.polls_csv, "a") as csv_file:
-          csv_file.write("{},{},{},{},{},{},{},{},{}\n".format(
-              sample["timestamp"],sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
-          ))
+
+      self.monitor_data["polls"].append(sample)
+
+      # Write csv data
+      with open(self.polls_csv, "a") as csv_file:
+        csv_file.write("{},{},{},{},{},{},{},{},{}\n".format(
+            datetime.utcfromtimestamp(sample["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
+        ))
 
         # TODO Calculate if a transition occured
         # TODO Determine if we have transition due to api request
-
-      else:
-        logger.warning("Specfic 'stress' container recommendation missing")
 
       end_poll_time = time.time()
       poll_time = round(end_poll_time - start_poll_time, 1)

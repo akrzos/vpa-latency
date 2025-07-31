@@ -236,18 +236,18 @@ def main():
 
   logger.info("Display report on monitor data")
   logger.info("API Requests")
-  for item in monitor_data["api_requests"]:
-    logger.info(item)
+  # for item in monitor_data["api_requests"]:
+  #   logger.info(item)
 
   logger.info("###############################################################################")
   logger.info("Polls")
-  for item in monitor_data["polls"]:
-    logger.info(item)
+  # for item in monitor_data["polls"]:
+  #   logger.info(item)
 
   logger.info("###############################################################################")
   logger.info("Recommendation Transitions")
-  for item in monitor_data["recommendation_transitions"]:
-    logger.info(item)
+  # for item in monitor_data["recommendation_transitions"]:
+  #   logger.info(item)
 
 
 if __name__ == "__main__":
