@@ -22,7 +22,7 @@
 # * Determine transition times
 # * Determine transition vs API Request Time
 # * Determine if recommendation change was scale up or scale down and latency
-# * Output a report card and csv file
+# * Output a report card
 
 
 import argparse
@@ -31,6 +31,7 @@ import json
 from libs.command import command
 from libs.vpa_monitor import VPAMonitor
 import logging
+import os
 import urllib3
 import requests
 import sys
@@ -44,7 +45,7 @@ logging.Formatter.converter = time.gmtime
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
-def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data):
+def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data, requests_csv_file):
   request_start_time = time.time()
   endpoint = "https://{}/stress?memory={}G&timeout={}".format(api_route, stress_memory, stress_timeout)
   logger.info("Requesting stress api :: {}".format(endpoint))
@@ -59,6 +60,9 @@ def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data):
   monitor_data["api_requests"].append(request)
   request_time = round(time.time() - request_start_time, 3)
   logger.info("Stress API response code: {}, Request Time: {}".format(response.status_code, request_time))
+
+  with open(requests_csv_file, "a") as csv_file:
+    csv_file.write("{},{},{},{},{}\n".format(request["timestamp"],request["endpoint"],request["memory"],request["timeout"],request["response"]))
 
 
 def main():
@@ -127,6 +131,7 @@ def main():
   else:
     logger.info("* Debug logging is disabled")
 
+  # Handle the API Request Route
   logger.info("###############################################################################")
   api_route = ""
   if cliargs.no_api_request:
@@ -148,23 +153,41 @@ def main():
       api_route = route_data["spec"]["host"]
       logger.info("Route is {}".format(api_route))
 
-  # TODO Initialize the csv file locations
-  polls_csv_file = "polls.csv"
-  transitions_csv_file = "transitions.csv"
+  # Sort out where to place result artifacts
+  base_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
+  base_dir_results = os.path.join(base_dir, "results")
+  report_dir_name = "{}-vpa-latency".format(datetime.utcfromtimestamp(time.time()).strftime("%Y%m%d-%H%M%S"))
+  report_dir = os.path.join(base_dir_results, report_dir_name)
+  os.mkdir(report_dir)
+
+  requests_csv_file = "{}/requests.csv".format(report_dir)
+  polls_csv_file = "{}/polls.csv".format(report_dir)
+  transitions_csv_file = "{}/transitions.csv".format(report_dir)
+
+  if not cliargs.no_api_request:
+    with open(requests_csv_file, "w") as csv_file:
+      csv_file.write("timestamp,endpoint,stress_memory,stress_timeout,response\n")
+
+  with open(polls_csv_file, "w") as csv_file:
+    csv_file.write("timestamp,cpu.lowerBound,cpu.target,cpu.uncappedTarget,cpu.upperBound,memory.lowerBound,memory.target,memory.uncappedTarget,memory.upperBound\n")
+
+  with open(transitions_csv_file, "w") as csv_file:
+    csv_file.write("timestamp,\n")
+
   monitor_data = {
     "api_requests": [],
     "polls": [],
     "recommendation_transitions": []
   }
 
-  # Write CSV Header
-  with open(polls_csv_file, "w") as csv_file:
-    csv_file.write("timestamp,cpu.lowerBound,cpu.target,cpu.uncappedTarget,cpu.upperBound,memory.lowerBound,memory.target,memory.uncappedTarget,memory.upperBound\n")
-
   logger.info("###############################################################################")
+  logger.info("Results data placed in: {}".format(report_dir))
+  if not cliargs.no_api_request:
+    logger.info("Storing request data in {}".format(requests_csv_file))
   logger.info("Storing raw polling data in {}".format(polls_csv_file))
   logger.info("Storing transition data in {}".format(transitions_csv_file))
 
+  # Start the measurement phase and test
   logger.info("###############################################################################")
   logger.info("Starting measurement phase")
 
@@ -185,7 +208,7 @@ def main():
     current_time = time.time()
     if not initial_api_request_completed and (current_time >= expected_api_request_time):
       logger.info("Completed initial api request phase")
-      stress_api_request(api_route, cliargs.stress_memory, cliargs.stress_timeout, monitor_data)
+      stress_api_request(api_route, cliargs.stress_memory, cliargs.stress_timeout, monitor_data, requests_csv_file)
       initial_api_request_completed = True
     if current_time >= expected_end_time:
       logger.info("Completed measurement phase")
@@ -205,6 +228,7 @@ def main():
   monitor_thread.signal = False
   monitor_thread.join()
 
+  # Display report card here
   end_time = time.time()
   total_time = round(end_time - start_time)
   logger.info("Total Time: {}".format(total_time))

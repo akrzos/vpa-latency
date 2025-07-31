@@ -17,7 +17,7 @@ oc label no vm00011 node-role.kubernetes.io/workload8=
 oc label no vm00012 node-role.kubernetes.io/workload9=
 
 # Create the vpa-stress namespaces and deployments
-oc create -f deployments/1-gothttp-stress.yml
+oc create -f deployments/1-gohttp-stress.yml
 # oc create -f deployments/1-underutil.yml
 # oc create -f deployments/2-overutil.yml
 # oc create -f deployments/3-standard.yml
