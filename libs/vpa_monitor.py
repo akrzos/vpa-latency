@@ -70,13 +70,13 @@ def normalize_memory(raw_memory):
 
 
 class VPAMonitor(Thread):
-  def __init__(self, namespace, vpa_name, monitor_data, polls_csv, transitions_csv, poll_interval):
+  def __init__(self, namespace, vpa_name, monitor_data, polls_csv, mem_rec_csv, poll_interval):
     super(VPAMonitor, self).__init__()
     self.namespace = namespace
     self.vpa_name = vpa_name
     self.monitor_data = monitor_data
     self.polls_csv = polls_csv
-    self.transitions_csv = transitions_csv
+    self.mem_rec_csv = mem_rec_csv
     self.poll_interval = poll_interval
     self.signal = True
 
@@ -115,7 +115,7 @@ class VPAMonitor(Thread):
 
       sample = OrderedDict()
       sample["timestamp"] = start_poll_time
-      # Set inital sample to 0
+      # Set inital sample keys to 0
       for key in all_monitor_keys:
         sample[key] = 0
 
@@ -129,7 +129,6 @@ class VPAMonitor(Thread):
         sample["memory.uncappedTarget"] = normalize_memory(recommendations["uncappedTarget"]["memory"])
         sample["memory.upperBound"] = normalize_memory(recommendations["upperBound"]["memory"])
 
-
       self.monitor_data["polls"].append(sample)
 
       # Write csv data
@@ -138,17 +137,16 @@ class VPAMonitor(Thread):
             datetime.utcfromtimestamp(sample["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
         ))
 
-      # TODO Determine if we have transition due to api request
-      # Only monitor memory for transitions due to cpu not normalized
+      # Only monitor memory recommendation changes due to cpu not normalized
       if len(self.monitor_data["polls"]) == 1:
-        logger.debug("Setting original values for transition data")
+        logger.debug("Setting original values for recommendation changes data")
         orig_mon_data = OrderedDict()
         for key in memory_monitor_keys:
           orig_mon_data[key] = sample[key]
         for key in memory_monitor_keys:
           orig_mon_data["{}.ts".format(key)] = sample["timestamp"]
       else:
-        logger.debug("Checking for transition")
+        logger.debug("Checking for memory recommendation changes")
         for key in memory_monitor_keys:
           if orig_mon_data[key] != sample[key]:
             t_type = "ScaleUp"
@@ -156,27 +154,64 @@ class VPAMonitor(Thread):
               t_type = "ScaleDown"
             t_latency = round(sample["timestamp"] - orig_mon_data["{}.ts".format(key)], 2)
             t_change = sample[key] - orig_mon_data[key]
-            transition = {
+
+            mem_rec_change = {
               "timestamp": sample["timestamp"],
               "old_ts": orig_mon_data["{}.ts".format(key)],
+              # "api_ts": "NA",
               "metric": key,
               "type": t_type,
               "latency": t_latency,
               "new_value": sample[key],
               "old_value": orig_mon_data[key],
-              "change": t_change
+              "change": t_change,
+              "new_value_gib": round(sample[key] / 1024 / 1024 / 1024, 2),
+              "old_value_gib": round(orig_mon_data[key] / 1024 / 1024 / 1024, 2),
+              "change_gib": round(t_change / 1024 / 1024 / 1024, 2)
             }
             logger.info("Detected {} for {}, latency {}, from {} to {}".format(t_type, key, t_latency, orig_mon_data[key], sample[key]))
 
-            self.monitor_data["transitions"].append(transition)
+            self.monitor_data["mem_recommendation_changes"].append(mem_rec_change)
 
-            with open(self.transitions_csv, "a") as csv_file:
-              csv_file.write("{},{},{},{},{},{},{},{}\n".format(
-                  datetime.utcfromtimestamp(transition["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  datetime.utcfromtimestamp(transition["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  transition["metric"], transition["type"], transition["latency"], transition["new_value"],
-                  transition["old_value"],transition["change"]
+            with open(self.mem_rec_csv, "a") as csv_file:
+              csv_file.write("{},{},NA,{},{},{},{},{},{},{},{},{}\n".format(
+                  datetime.utcfromtimestamp(mem_rec_change["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  datetime.utcfromtimestamp(mem_rec_change["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  mem_rec_change["metric"], mem_rec_change["type"], mem_rec_change["latency"],
+                  mem_rec_change["new_value"], mem_rec_change["old_value"], mem_rec_change["change"],
+                  mem_rec_change["new_value_gib"], mem_rec_change["old_value_gib"], mem_rec_change["change_gib"]
               ))
+
+            # Record latency from inital api request that triggered recommendation change
+            if len(self.monitor_data["api_requests"]) > 0:
+              for api_r in self.monitor_data["api_requests"]:
+                r_to_t_latency = round(sample["timestamp"] - api_r["timestamp"], 2)
+
+                mem_rec_change = {
+                  "timestamp": sample["timestamp"],
+                  "old_ts": api_r["timestamp"],
+                  # "api_ts": "Yes",
+                  "metric": key,
+                  "type": t_type,
+                  "latency": r_to_t_latency,
+                  "new_value": sample[key],
+                  "old_value": orig_mon_data[key],
+                  "change": t_change,
+                  "new_value_gib": round(sample[key] / 1024 / 1024 / 1024, 2),
+                  "old_value_gib": round(orig_mon_data[key] / 1024 / 1024 / 1024, 2),
+                  "change_gib": round(t_change / 1024 / 1024 / 1024, 2)
+                }
+
+                self.monitor_data["mem_recommendation_changes"].append(mem_rec_change)
+
+                with open(self.mem_rec_csv, "a") as csv_file:
+                  csv_file.write("{},{},Yes,{},{},{},{},{},{},{},{},{}\n".format(
+                      datetime.utcfromtimestamp(mem_rec_change["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      datetime.utcfromtimestamp(mem_rec_change["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      mem_rec_change["metric"], mem_rec_change["type"], mem_rec_change["latency"],
+                      mem_rec_change["new_value"], mem_rec_change["old_value"], mem_rec_change["change"],
+                      mem_rec_change["new_value_gib"], mem_rec_change["old_value_gib"], mem_rec_change["change_gib"]
+                  ))
 
             # Set new original value and timestamp after data is recorded
             orig_mon_data[key] = sample[key]

@@ -18,8 +18,8 @@
 
 
 # TODO:
-# * Determine transition vs API Request Time
 # * Output a report card
+# * Normalize CPU cores
 
 
 import argparse
@@ -68,19 +68,19 @@ def main():
       prog="vpa-latency.py", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
   # Workload pattern/phase arguments
-  parser.add_argument("-m", "--measurement-time", type=int, default=30,
+  parser.add_argument("-m", "--measurement-time", type=int, default=180,
                       help="Total amount of time (seconds) the script will poll VPA for recommendations")
-  parser.add_argument("-i", "--initial-api-wait", type=int, default=5,
+  parser.add_argument("-i", "--initial-api-wait", type=int, default=60,
                       help="Amount of time (seconds) to wait before making the API request for /stress")
 
   # Arguments to help determine when a new recommendation was made
-  parser.add_argument("-p", "--poll-interval", type=int, default=5,
+  parser.add_argument("-p", "--poll-interval", type=float, default=5,
                       help="Time between polling VPA and checkpoint for new recommendations")
 
   # Arguments for the API request to the gohttp stress endpoint
   parser.add_argument("--no-api-request", action="store_true", default=False,
                       help="Does not send any API request to trigger stress-ng")
-  parser.add_argument("-s", "--stress-memory", type=int, default=3,
+  parser.add_argument("-s", "--stress-memory", type=int, default=5,
                       help="Memory (GiB) setting for stress-ng to be passed with API request")
   parser.add_argument("-t", "--stress-timeout", type=int, default=60,
                       help="Timeout (seconds) setting for stress-ng to be passed with API request")
@@ -159,7 +159,7 @@ def main():
 
   requests_csv_file = "{}/requests.csv".format(report_dir)
   polls_csv_file = "{}/polls.csv".format(report_dir)
-  transitions_csv_file = "{}/transitions.csv".format(report_dir)
+  memory_recommendations_csv_file = "{}/memory_recommendation_changes.csv".format(report_dir)
 
   if not cliargs.no_api_request:
     with open(requests_csv_file, "w") as csv_file:
@@ -168,13 +168,13 @@ def main():
   with open(polls_csv_file, "w") as csv_file:
     csv_file.write("timestamp,cpu.lowerBound,cpu.target,cpu.uncappedTarget,cpu.upperBound,memory.lowerBound,memory.target,memory.uncappedTarget,memory.upperBound\n")
 
-  with open(transitions_csv_file, "w") as csv_file:
-    csv_file.write("timestamp,old_ts,metric,type,latency,new_value,old_value,change\n")
+  with open(memory_recommendations_csv_file, "w") as csv_file:
+    csv_file.write("timestamp,old_ts,api_ts,metric,type,latency,new_value,old_value,change,new_value_gib,old_value_gib,change_gib\n")
 
   monitor_data = {
     "api_requests": [],
     "polls": [],
-    "transitions": []
+    "mem_recommendation_changes": []
   }
 
   logger.info("###############################################################################")
@@ -182,13 +182,13 @@ def main():
   if not cliargs.no_api_request:
     logger.info("Storing request data in {}".format(requests_csv_file))
   logger.info("Storing raw polling data in {}".format(polls_csv_file))
-  logger.info("Storing transition data in {}".format(transitions_csv_file))
+  logger.info("Storing memory recommendation changes data in {}".format(memory_recommendations_csv_file))
 
   # Start the measurement phase and test
   logger.info("###############################################################################")
   logger.info("Starting measurement phase")
 
-  monitor_thread = VPAMonitor(cliargs.namespace, cliargs.vpa_name, monitor_data, polls_csv_file, transitions_csv_file, cliargs.poll_interval)
+  monitor_thread = VPAMonitor(cliargs.namespace, cliargs.vpa_name, monitor_data, polls_csv_file, memory_recommendations_csv_file, cliargs.poll_interval)
   monitor_thread.start()
 
   start_time = time.time()
@@ -243,7 +243,7 @@ def main():
 
   logger.info("###############################################################################")
   logger.info("Recommendation Transitions")
-  for item in monitor_data["transitions"]:
+  for item in monitor_data["mem_recommendation_changes"]:
     logger.info(item)
 
 
