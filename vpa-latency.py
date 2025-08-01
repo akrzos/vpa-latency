@@ -48,7 +48,7 @@ def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data, r
   logger.info("Requesting stress api :: {}".format(endpoint))
   response = requests.get(endpoint, verify=False)
   request = {
-    "timestamp": datetime.utcfromtimestamp(request_start_time).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "timestamp": request_start_time,
     "endpoint": endpoint,
     "memory": stress_memory,
     "timeout": stress_timeout,
@@ -59,7 +59,7 @@ def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data, r
   logger.info("Stress API response code: {}, Request Time: {}".format(response.status_code, request_time))
 
   with open(requests_csv_file, "a") as csv_file:
-    csv_file.write("{},{},{},{},{}\n".format(request["timestamp"],request["endpoint"],request["memory"],request["timeout"],request["response"]))
+    csv_file.write("{},{},{},{},{}\n".format(datetime.utcfromtimestamp(request["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),request["endpoint"],request["memory"],request["timeout"],request["response"]))
 
 
 def main():
