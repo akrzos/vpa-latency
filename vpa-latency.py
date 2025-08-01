@@ -18,7 +18,6 @@
 
 
 # TODO:
-# * Output a report card
 # * Normalize CPU cores
 
 
@@ -40,6 +39,63 @@ logger = logging.getLogger("vpa-latency")
 logging.Formatter.converter = time.gmtime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def generate_report(cliargs, mon_data, total_time, report_dir):
+  logger.info("###############################################################################")
+
+  with open("{}/report.txt".format(report_dir), "w") as report:
+    log_write(report, "VPA Latency Test Report Card")
+    log_write(report, "###############################################################################")
+    # Test Parameters
+    log_write(report, "* Measurement time set to {}s".format(cliargs.measurement_time))
+    log_write(report, "* Polling for vpa recommendation every {}s".format(cliargs.poll_interval))
+    if cliargs.no_api_request:
+      log_write(report, "* No API request to trigger stress-ng")
+    else:
+      log_write(report, "* API request to trigger stress-ng after {}s with {}G memory for {} seconds".format(cliargs.initial_api_wait, cliargs.stress_memory, cliargs.stress_timeout))
+    log_write(report, "* Namespace of the VPA and stress pod: {}".format(cliargs.namespace))
+    log_write(report, "* VPA name: {}".format(cliargs.vpa_name))
+    log_write(report, "* Route name for the stress pod: {}".format(cliargs.route_name))
+    log_write(report, "###############################################################################")
+    log_write(report, "Total Test Time: {}".format(total_time))
+    log_write(report, "###############################################################################")
+    log_write(report, "Memory Recommendation changes computed with API request timestamp")
+    for change_item in mon_data["mem_recommendation_changes"]:
+      if change_item["api_ts"] == "Yes":
+        if change_item["metric"] == "memory.target":
+          log_change_item(report, change_item)
+    for change_item in mon_data["mem_recommendation_changes"]:
+      if change_item["api_ts"] == "Yes":
+        if change_item["metric"] == "memory.uncappedTarget":
+          log_change_item(report, change_item)
+    log_write(report, "###############################################################################")
+    log_write(report, "Recommendation changes")
+    for change_item in mon_data["mem_recommendation_changes"]:
+      if change_item["api_ts"] == "NA":
+        if change_item["metric"] == "memory.target":
+          log_change_item(report, change_item)
+    for change_item in mon_data["mem_recommendation_changes"]:
+      if change_item["api_ts"] == "NA":
+        if change_item["metric"] == "memory.uncappedTarget":
+          log_change_item(report, change_item)
+
+
+def log_change_item(report, change_item):
+  log_write(report, "VPA Recommendation {} {} change - {} GiB".format(change_item["type"], change_item["metric"], change_item["change_gib"]))
+  log_write(report, "  Latency")
+  log_write(report, "  * API Request TS: {}".format(datetime.utcfromtimestamp(change_item["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ')))
+  log_write(report, "  * Recommendation TS: {}".format(datetime.utcfromtimestamp(change_item["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ')))
+  log_write(report, "  * Latency: {} seconds".format(change_item["latency"]))
+  log_write(report, "  Values")
+  log_write(report, "  * Original: {} bytes :: {} GiB".format(change_item["old_value"], change_item["old_value_gib"]))
+  log_write(report, "  * New: {} bytes :: {} GiB".format(change_item["new_value"], change_item["new_value_gib"]))
+  log_write(report, "  * Change: {} bytes :: {} GiB".format(change_item["change"], change_item["change_gib"]))
+
+
+def log_write(file, message):
+  logger.info(message)
+  file.write(message + "\n")
 
 
 def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data, requests_csv_file):
@@ -159,6 +215,7 @@ def main():
 
   requests_csv_file = "{}/requests.csv".format(report_dir)
   polls_csv_file = "{}/polls.csv".format(report_dir)
+  cpu_recommendations_csv_file = "{}/cpu_recommendation_changes.csv".format(report_dir)
   memory_recommendations_csv_file = "{}/memory_recommendation_changes.csv".format(report_dir)
 
   if not cliargs.no_api_request:
@@ -168,12 +225,16 @@ def main():
   with open(polls_csv_file, "w") as csv_file:
     csv_file.write("timestamp,cpu.lowerBound,cpu.target,cpu.uncappedTarget,cpu.upperBound,memory.lowerBound,memory.target,memory.uncappedTarget,memory.upperBound\n")
 
+  # with open(cpu_recommendations_csv_file, "w") as csv_file:
+  #   csv_file.write("timestamp,old_ts,api_ts,metric,type,latency,new_value,old_value,change\n")
+
   with open(memory_recommendations_csv_file, "w") as csv_file:
     csv_file.write("timestamp,old_ts,api_ts,metric,type,latency,new_value,old_value,change,new_value_gib,old_value_gib,change_gib\n")
 
   monitor_data = {
     "api_requests": [],
     "polls": [],
+    "cpu_recommendation_changes": [],
     "mem_recommendation_changes": []
   }
 
@@ -182,13 +243,16 @@ def main():
   if not cliargs.no_api_request:
     logger.info("Storing request data in {}".format(requests_csv_file))
   logger.info("Storing raw polling data in {}".format(polls_csv_file))
+  # logger.info("Storing cpu recommendation changes data in {}".format(cpu_recommendations_csv_file))
   logger.info("Storing memory recommendation changes data in {}".format(memory_recommendations_csv_file))
 
   # Start the measurement phase and test
   logger.info("###############################################################################")
   logger.info("Starting measurement phase")
 
-  monitor_thread = VPAMonitor(cliargs.namespace, cliargs.vpa_name, monitor_data, polls_csv_file, memory_recommendations_csv_file, cliargs.poll_interval)
+  monitor_thread = VPAMonitor(
+      cliargs.namespace, cliargs.vpa_name, monitor_data, polls_csv_file, cpu_recommendations_csv_file,
+      memory_recommendations_csv_file, cliargs.poll_interval)
   monitor_thread.start()
 
   start_time = time.time()
@@ -228,23 +292,7 @@ def main():
   # Display report card here
   end_time = time.time()
   total_time = round(end_time - start_time)
-  logger.info("Total Time: {}".format(total_time))
-  logger.info("###############################################################################")
-
-  logger.info("Display report on monitor data")
-  logger.info("API Requests")
-  # for item in monitor_data["api_requests"]:
-  #   logger.info(item)
-
-  logger.info("###############################################################################")
-  logger.info("Polls")
-  # for item in monitor_data["polls"]:
-  #   logger.info(item)
-
-  logger.info("###############################################################################")
-  logger.info("Recommendation Transitions")
-  for item in monitor_data["mem_recommendation_changes"]:
-    logger.info(item)
+  generate_report(cliargs, monitor_data, total_time, report_dir)
 
 
 if __name__ == "__main__":

@@ -70,12 +70,13 @@ def normalize_memory(raw_memory):
 
 
 class VPAMonitor(Thread):
-  def __init__(self, namespace, vpa_name, monitor_data, polls_csv, mem_rec_csv, poll_interval):
+  def __init__(self, namespace, vpa_name, monitor_data, polls_csv, cpu_rec_csv, mem_rec_csv, poll_interval):
     super(VPAMonitor, self).__init__()
     self.namespace = namespace
     self.vpa_name = vpa_name
     self.monitor_data = monitor_data
     self.polls_csv = polls_csv
+    self.cpu_rec_csv = cpu_rec_csv
     self.mem_rec_csv = mem_rec_csv
     self.poll_interval = poll_interval
     self.signal = True
@@ -158,7 +159,7 @@ class VPAMonitor(Thread):
             mem_rec_change = {
               "timestamp": sample["timestamp"],
               "old_ts": orig_mon_data["{}.ts".format(key)],
-              # "api_ts": "NA",
+              "api_ts": "NA",
               "metric": key,
               "type": t_type,
               "latency": t_latency,
@@ -190,7 +191,7 @@ class VPAMonitor(Thread):
                 mem_rec_change = {
                   "timestamp": sample["timestamp"],
                   "old_ts": api_r["timestamp"],
-                  # "api_ts": "Yes",
+                  "api_ts": "Yes",
                   "metric": key,
                   "type": t_type,
                   "latency": r_to_t_latency,
