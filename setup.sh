@@ -3,27 +3,20 @@
 export KUBECONFIG=/root/vmno/kubeconfig
 
 # Apply the VerticalPodAutoscalerController changes
-oc apply -f vpac.yml
+# oc apply -f vpac.yml
 
-# Label the worker nodes each for a different workload
-oc label no vm00004 node-role.kubernetes.io/workload1=
-oc label no vm00005 node-role.kubernetes.io/workload2=
-oc label no vm00006 node-role.kubernetes.io/workload3=
-oc label no vm00007 node-role.kubernetes.io/workload4=
-oc label no vm00008 node-role.kubernetes.io/workload5=
-oc label no vm00009 node-role.kubernetes.io/workload6=
-oc label no vm00010 node-role.kubernetes.io/workload7=
-oc label no vm00011 node-role.kubernetes.io/workload8=
-oc label no vm00012 node-role.kubernetes.io/workload9=
+nodes=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[*].metadata.name}')
 
-# gohttp-stress
-# Creates a NS, Deployment, Svc, Route for each gohttp-stressng pod
-oc create -f deployments/gohttp-stress-1.yml
-oc create -f deployments/gohttp-stress-2.yml
-oc create -f deployments/gohttp-stress-3.yml
-oc create -f deployments/gohttp-stress-4.yml
-oc create -f deployments/gohttp-stress-5.yml
-oc create -f deployments/gohttp-stress-6.yml
+index=1
+for node in $nodes; do
+  echo "Labeling node $node as node-role.kubernetes.io/workload$index="
+  oc label node $node node-role.kubernetes.io/workload$index=
+  echo "Creating gohttp stress deployment for index $index"
+  deployment_index=$index envsubst < deployments/gohttp-stress.yml.tmpl > deployments/gohttp-stress-$index.yml
+  oc create -f deployments/gohttp-stress-$index.yml
+  rm deployments/gohttp-stress-$index.yml
+  index=$((index + 1))
+done
 
 # stress-ng pods where env vars control stressng sequence
 # oc create -f deployments/1-underutil.yml

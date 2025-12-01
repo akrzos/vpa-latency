@@ -4,13 +4,13 @@ kind: Namespace
 metadata:
   annontations:
     openshift.io/node-selector: ''
-  name: vpa-gohttp-stress-3
+  name: vpa-gohttp-stress-${deployment_index}
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: gohttp
-  namespace: vpa-gohttp-stress-3
+  namespace: vpa-gohttp-stress-${deployment_index}
 spec:
   selector:
     app: stress
@@ -24,7 +24,7 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: gohttp
-  namespace: vpa-gohttp-stress-3
+  namespace: vpa-gohttp-stress-${deployment_index}
 spec:
   tls:
     termination: edge
@@ -35,7 +35,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: stress
-  namespace: vpa-gohttp-stress-3
+  namespace: vpa-gohttp-stress-${deployment_index}
 spec:
   replicas: 1
   selector:
@@ -73,13 +73,13 @@ spec:
         - name: READINESS_SUCCESS_MAX
           value: "0"
       nodeSelector:
-        node-role.kubernetes.io/workload3: ""
+        node-role.kubernetes.io/workload${deployment_index}: ""
 ---
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: vpa-stress
-  namespace: vpa-gohttp-stress-3
+  namespace: vpa-gohttp-stress-${deployment_index}
 spec:
   targetRef:
     apiVersion: apps/v1

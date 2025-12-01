@@ -163,7 +163,7 @@ def main():
     logger.error("Initial API wait({}) must be < measurement time({})".format(cliargs.initial_api_wait, cliargs.measurement_time))
     sys.exit(1)
   if cliargs.poll_interval < 1:
-    logger.error("Poll time must be >= 0, set to {}".format(cliargs.poll_interval))
+    logger.error("Poll time must be >= 1, set to {}".format(cliargs.poll_interval))
     sys.exit(1)
 
   # Display test arguments
