@@ -15,7 +15,7 @@
 
 
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import logging
 import time
@@ -135,7 +135,7 @@ class VPAMonitor(Thread):
       # Write csv data
       with open(self.polls_csv, "a") as csv_file:
         csv_file.write("{},{},{},{},{},{},{},{},{}\n".format(
-            datetime.utcfromtimestamp(sample["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
+            datetime.fromtimestamp(sample["timestamp"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),sample["cpu.lowerBound"],sample["cpu.target"],sample["cpu.uncappedTarget"],sample["cpu.upperBound"],sample["memory.lowerBound"],sample["memory.target"],sample["memory.uncappedTarget"],sample["memory.upperBound"]
         ))
 
       # Only monitor memory recommendation changes due to cpu not normalized
@@ -176,8 +176,8 @@ class VPAMonitor(Thread):
 
             with open(self.mem_rec_csv, "a") as csv_file:
               csv_file.write("{},{},NA,{},{},{},{},{},{},{},{},{}\n".format(
-                  datetime.utcfromtimestamp(mem_rec_change["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                  datetime.utcfromtimestamp(mem_rec_change["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  datetime.fromtimestamp(mem_rec_change["timestamp"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                  datetime.fromtimestamp(mem_rec_change["old_ts"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                   mem_rec_change["metric"], mem_rec_change["type"], mem_rec_change["latency"],
                   mem_rec_change["new_value"], mem_rec_change["old_value"], mem_rec_change["change"],
                   mem_rec_change["new_value_gib"], mem_rec_change["old_value_gib"], mem_rec_change["change_gib"]
@@ -207,8 +207,8 @@ class VPAMonitor(Thread):
 
                 with open(self.mem_rec_csv, "a") as csv_file:
                   csv_file.write("{},{},Yes,{},{},{},{},{},{},{},{},{}\n".format(
-                      datetime.utcfromtimestamp(mem_rec_change["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                      datetime.utcfromtimestamp(mem_rec_change["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      datetime.fromtimestamp(mem_rec_change["timestamp"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      datetime.fromtimestamp(mem_rec_change["old_ts"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                       mem_rec_change["metric"], mem_rec_change["type"], mem_rec_change["latency"],
                       mem_rec_change["new_value"], mem_rec_change["old_value"], mem_rec_change["change"],
                       mem_rec_change["new_value_gib"], mem_rec_change["old_value_gib"], mem_rec_change["change_gib"]
