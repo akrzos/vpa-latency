@@ -25,7 +25,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 from libs.command import command
-from libs.post_test_data import gather_post_test_data
+from libs.diagnostic import gather_diagnostic_data
 from libs.vpa_monitor import VPAMonitor
 import logging
 import os
@@ -255,6 +255,11 @@ def main():
   logger.info("Storing raw polling data in {}".format(polls_csv_file))
   # logger.info("Storing cpu recommendation changes data in {}".format(cpu_recommendations_csv_file))
   logger.info("Storing memory recommendation changes data in {}".format(memory_recommendations_csv_file))
+  logger.info("###############################################################################")
+
+  logger.info("Gathering pre-test diagnostic data")
+  gather_diagnostic_data(cliargs, report_dir, "pre-test")
+  logger.info("Completed gathering pre-test diagnostic data")
 
   # Start the measurement phase and test
   logger.info("###############################################################################")
@@ -304,7 +309,9 @@ def main():
   total_time = round(end_time - start_time)
   generate_report(cliargs, monitor_data, total_time, report_dir)
 
-  gather_post_test_data(cliargs, report_dir)
+  logger.info("Gathering post-test diagnostic data")
+  gather_diagnostic_data(cliargs, report_dir, "post-test")
+  logger.info("Completed gathering post-test diagnostic data")
 
 
 if __name__ == "__main__":
