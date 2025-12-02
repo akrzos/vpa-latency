@@ -51,6 +51,8 @@ spec:
         image: quay.io/akrzos/gohttp:latest
         imagePullPolicy: Always
         resources:
+          # limits:
+          #   memory: 5Gi
           requests:
             memory: 1Gi
             cpu: 1
