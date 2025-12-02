@@ -22,6 +22,19 @@ import os
 logger = logging.getLogger("vpa-latency")
 
 
+def oc_gather(verb, resource, namespace, diagnostic_data_dir, output=None):
+  if output is None:
+    cmd= ["oc", verb, resource, "-n", namespace]
+  else:
+    cmd= ["oc", verb, resource, "-n", namespace, "-o", output]
+  rc, output = command(cmd, retries=3, no_log=True)
+  if rc != 0:
+    logger.error(f"vpa-latency, oc {verb} {resource} rc: {rc}")
+  else:
+    with open(os.path.join(diagnostic_data_dir, "{}.{}".format(resource, verb)), "w") as f:
+      f.write(output)
+
+
 def gather_diagnostic_data(cliargs, report_dir, diagnostic_dir):
 
   rc, output = command(["oc", "get", "po", "-n", cliargs.namespace, "-o", "json"], retries=3, no_log=True)
@@ -37,43 +50,19 @@ def gather_diagnostic_data(cliargs, report_dir, diagnostic_dir):
   os.mkdir(diagnostic_data_dir)
 
   # Get and describe the VPA
-  rc, output = command(["oc", "get", "vpa", "-n", cliargs.namespace, cliargs.vpa_name], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc get vpa rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "vpa"), "w") as f:
-    f.write(output)
-
-  rc, output = command(["oc", "describe", "vpa", "-n", cliargs.namespace, cliargs.vpa_name], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc describe vpa rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "vpa.describe"), "w") as f:
-    f.write(output)
+  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir)
+  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir, "yaml")
+  oc_gather("describe", "vpa", cliargs.namespace, diagnostic_data_dir)
 
   # Get and describe the pods
-  rc, output = command(["oc", "get", "po", "-n", cliargs.namespace], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc get po rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "po"), "w") as f:
-    f.write(output)
-
-  rc, output = command(["oc", "describe", "po", "-n", cliargs.namespace], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc describe po rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "po.describe"), "w") as f:
-    f.write(output)
+  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir)
+  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir, "yaml")
+  oc_gather("describe", "po", cliargs.namespace, diagnostic_data_dir)
 
   # Get and describe the deployments
-  rc, output = command(["oc", "get", "deploy", "-n", cliargs.namespace], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc get deploy rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "deploy"), "w") as f:
-    f.write(output)
-
-  rc, output = command(["oc", "describe", "deploy", "-n", cliargs.namespace], retries=3, no_log=True)
-  if rc != 0:
-    logger.error("vpa-latency, oc describe deploy rc: {}".format(rc))
-  with open(os.path.join(diagnostic_data_dir, "deploy.describe"), "w") as f:
-    f.write(output)
+  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir)
+  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir, "yaml")
+  oc_gather("describe", "deploy", cliargs.namespace, diagnostic_data_dir)
 
   # Get the logs for the pods
   for pod in po_data["items"]:

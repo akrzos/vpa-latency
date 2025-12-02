@@ -84,6 +84,8 @@ def generate_report(cliargs, mon_data, total_time, report_dir):
         if change_item["metric"] == "memory.uncappedTarget":
           log_change_item(report, change_item)
 
+  logger.info("###############################################################################")
+
 
 def log_change_item(report, change_item):
   log_write(report, "VPA Recommendation {} {} change - {} GiB".format(change_item["type"], change_item["metric"], change_item["change_gib"]))
