@@ -25,6 +25,7 @@ import argparse
 from datetime import datetime, timezone
 import json
 from libs.command import command
+from libs.post_test_data import gather_post_test_data
 from libs.vpa_monitor import VPAMonitor
 import logging
 import os
@@ -302,6 +303,8 @@ def main():
   end_time = time.time()
   total_time = round(end_time - start_time)
   generate_report(cliargs, monitor_data, total_time, report_dir)
+
+  gather_post_test_data(cliargs, report_dir)
 
 
 if __name__ == "__main__":
