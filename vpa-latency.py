@@ -22,7 +22,7 @@
 
 
 import argparse
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from libs.command import command
 from libs.vpa_monitor import VPAMonitor
@@ -48,15 +48,18 @@ def generate_report(cliargs, mon_data, total_time, report_dir):
     log_write(report, "VPA Latency Test Report Card")
     log_write(report, "###############################################################################")
     # Test Parameters
-    log_write(report, "* Measurement time set to {}s".format(cliargs.measurement_time))
-    log_write(report, "* Polling for vpa recommendation every {}s".format(cliargs.poll_interval))
+    log_write(report, "* Measurement Time: {}s".format(cliargs.measurement_time))
+    log_write(report, "* VPA Recommendation Polling Interval: {}s".format(cliargs.poll_interval))
+    log_write(report, "* Namespace: {}".format(cliargs.namespace))
+    log_write(report, "  * VPA Name: {}".format(cliargs.vpa_name))
+    log_write(report, "  * Route Name: {}".format(cliargs.route_name))
+    log_write(report, "* API Request:")
     if cliargs.no_api_request:
-      log_write(report, "* No API request to trigger stress-ng")
+      log_write(report, "  * No API Requests to trigger stress-ng")
     else:
-      log_write(report, "* API request to trigger stress-ng after {}s with {}G memory for {} seconds".format(cliargs.initial_api_wait, cliargs.stress_memory, cliargs.stress_timeout))
-    log_write(report, "* Namespace of the VPA and stress pod: {}".format(cliargs.namespace))
-    log_write(report, "* VPA name: {}".format(cliargs.vpa_name))
-    log_write(report, "* Route name for the stress pod: {}".format(cliargs.route_name))
+      log_write(report, "  * API Request at: {}s".format(cliargs.initial_api_wait))
+      log_write(report, "  * Stress-ng Memory: {}G".format(cliargs.stress_memory))
+      log_write(report, "  * Stress-ng Timeout: {}s".format(cliargs.stress_timeout))
     log_write(report, "###############################################################################")
     log_write(report, "Total Test Time: {}".format(total_time))
     log_write(report, "###############################################################################")
@@ -84,8 +87,11 @@ def generate_report(cliargs, mon_data, total_time, report_dir):
 def log_change_item(report, change_item):
   log_write(report, "VPA Recommendation {} {} change - {} GiB".format(change_item["type"], change_item["metric"], change_item["change_gib"]))
   log_write(report, "  Latency")
-  log_write(report, "  * API Request TS: {}".format(datetime.utcfromtimestamp(change_item["old_ts"]).strftime('%Y-%m-%dT%H:%M:%SZ')))
-  log_write(report, "  * Recommendation TS: {}".format(datetime.utcfromtimestamp(change_item["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ')))
+  if change_item["api_ts"] == "NA":
+    log_write(report, "  * Previous recorded TS: {}".format(datetime.fromtimestamp(change_item["old_ts"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')))
+  else:
+    log_write(report, "  * API Request TS: {}".format(datetime.fromtimestamp(change_item["old_ts"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')))
+  log_write(report, "  * Recommendation TS: {}".format(datetime.fromtimestamp(change_item["timestamp"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')))
   log_write(report, "  * Latency: {} seconds".format(change_item["latency"]))
   log_write(report, "  Values")
   log_write(report, "  * Original: {} bytes :: {} GiB".format(change_item["old_value"], change_item["old_value_gib"]))
@@ -115,7 +121,7 @@ def stress_api_request(api_route, stress_memory, stress_timeout, monitor_data, r
   logger.info("Stress API response code: {}, Request Time: {}".format(response.status_code, request_time))
 
   with open(requests_csv_file, "a") as csv_file:
-    csv_file.write("{},{},{},{},{}\n".format(datetime.utcfromtimestamp(request["timestamp"]).strftime('%Y-%m-%dT%H:%M:%SZ'),request["endpoint"],request["memory"],request["timeout"],request["response"]))
+    csv_file.write("{},{},{},{},{}\n".format(datetime.fromtimestamp(request["timestamp"], tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),request["endpoint"],request["memory"],request["timeout"],request["response"]))
 
 
 def main():
@@ -170,15 +176,18 @@ def main():
   logger.info("VPA Latency Test")
   logger.info("###############################################################################")
   logger.debug("CLI Args: {}".format(cliargs))
-  logger.info("* Measurement time set to {}s".format(cliargs.measurement_time))
-  logger.info("  * Polling for vpa recommendation every {}s".format(cliargs.poll_interval))
+  logger.info("* Measurement Time: {}s".format(cliargs.measurement_time))
+  logger.info("* VPA Recommendation Polling Interval: {}s".format(cliargs.poll_interval))
+  logger.info("* Namespace: {}".format(cliargs.namespace))
+  logger.info("  * VPA Name: {}".format(cliargs.vpa_name))
+  logger.info("  * Route Name: {}".format(cliargs.route_name))
+  logger.info("* API Request:")
   if cliargs.no_api_request:
-    logger.info("  * No API request to trigger stress-ng")
+    logger.info("  * No API Requests to trigger stress-ng")
   else:
-    logger.info("  * API request to trigger stress-ng after {}s with {}G memory for {} seconds".format(cliargs.initial_api_wait, cliargs.stress_memory, cliargs.stress_timeout))
-  logger.info("* Namespace of the VPA and stress pod: {}".format(cliargs.namespace))
-  logger.info("  * VPA name: {}".format(cliargs.vpa_name))
-  logger.info("  * Route name for the stress pod: {}".format(cliargs.route_name))
+    logger.info("  * API Request at: {}s".format(cliargs.initial_api_wait))
+    logger.info("  * Stress-ng Memory: {}G".format(cliargs.stress_memory))
+    logger.info("  * Stress-ng Timeout: {}s".format(cliargs.stress_timeout))
   if cliargs.debug:
     logger.info("* Debug logging is enabled")
   else:
@@ -209,7 +218,7 @@ def main():
   # Sort out where to place result artifacts
   base_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
   base_dir_results = os.path.join(base_dir, "results")
-  report_dir_name = "{}-vpa-latency".format(datetime.utcfromtimestamp(time.time()).strftime("%Y%m%d-%H%M%S"))
+  report_dir_name = "{}-vpa-latency".format(datetime.fromtimestamp(time.time(), tz=timezone.utc).strftime("%Y%m%d-%H%M%S"))
   report_dir = os.path.join(base_dir_results, report_dir_name)
   os.mkdir(report_dir)
 
