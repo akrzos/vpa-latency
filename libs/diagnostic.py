@@ -22,16 +22,18 @@ import os
 logger = logging.getLogger("vpa-latency")
 
 
-def oc_gather(verb, resource, namespace, diagnostic_data_dir, output=None):
-  if output is None:
-    cmd= ["oc", verb, resource, "-n", namespace]
-  else:
-    cmd= ["oc", verb, resource, "-n", namespace, "-o", output]
+def oc_gather(verb, resource, namespace, diagnostic_data_dir, cmd_out=None):
+  cmd = ["oc", verb, resource, "-n", namespace]
+  if cmd_out is not None:
+    cmd.extend(["-o", cmd_out])
   rc, output = command(cmd, retries=3, no_log=True)
   if rc != 0:
     logger.error(f"vpa-latency, oc {verb} {resource} rc: {rc}")
   else:
-    with open(os.path.join(diagnostic_data_dir, "{}.{}".format(resource, verb)), "w") as f:
+    output_file = "{}.{}".format(resource, verb)
+    if cmd_out is not None:
+      output_file = "{}.{}.{}".format(resource, verb, cmd_out)
+    with open(os.path.join(diagnostic_data_dir, output_file), "w") as f:
       f.write(output)
 
 
