@@ -155,6 +155,11 @@ def main():
   parser.add_argument("-v", "--vpa-name", type=str, default="vpa-stress", help="Name of VPA")
   parser.add_argument("-r", "--route-name", type=str, default="gohttp", help="Name of route for /stress API")
 
+  parser.add_argument("--no-pre-test-data", action="store_true", default=False,
+                      help="Do not gather pre-test diagnostic data")
+  parser.add_argument("--no-post-test-data", action="store_true", default=False,
+                      help="Do not gather post-test diagnostic data")
+
   parser.add_argument("-d", "--debug", action="store_true", default=False, help="Set log level debug")
 
   cliargs = parser.parse_args()
@@ -221,7 +226,7 @@ def main():
   # Sort out where to place result artifacts
   base_dir = os.path.dirname(os.path.realpath(sys.argv[0]))
   base_dir_results = os.path.join(base_dir, "results")
-  report_dir_name = "{}-vpa-latency".format(datetime.fromtimestamp(time.time(), tz=timezone.utc).strftime("%Y%m%d-%H%M%S"))
+  report_dir_name = "{}-vpa-lat-{}".format(datetime.fromtimestamp(time.time(), tz=timezone.utc).strftime("%Y%m%d-%H%M%S"), cliargs.namespace)
   report_dir = os.path.join(base_dir_results, report_dir_name)
   os.mkdir(report_dir)
 
@@ -259,9 +264,12 @@ def main():
   logger.info("Storing memory recommendation changes data in {}".format(memory_recommendations_csv_file))
   logger.info("###############################################################################")
 
-  logger.info("Gathering pre-test diagnostic data")
-  gather_diagnostic_data(cliargs, report_dir, "pre-test")
-  logger.info("Completed gathering pre-test diagnostic data")
+  if not cliargs.no_pre_test_data:
+    logger.info("Gathering pre-test diagnostic data")
+    gather_diagnostic_data(cliargs, report_dir, "pre-test")
+    logger.info("Completed gathering pre-test diagnostic data")
+  else:
+    logger.info("Pre-test diagnostic data not gathered")
 
   # Start the measurement phase and test
   logger.info("###############################################################################")
@@ -311,9 +319,12 @@ def main():
   total_time = round(end_time - start_time)
   generate_report(cliargs, monitor_data, total_time, report_dir)
 
-  logger.info("Gathering post-test diagnostic data")
-  gather_diagnostic_data(cliargs, report_dir, "post-test")
-  logger.info("Completed gathering post-test diagnostic data")
+  if not cliargs.no_post_test_data:
+    logger.info("Gathering post-test diagnostic data")
+    gather_diagnostic_data(cliargs, report_dir, "post-test")
+    logger.info("Completed gathering post-test diagnostic data")
+  else:
+    logger.info("Post-test diagnostic data not gathered")
 
 
 if __name__ == "__main__":
