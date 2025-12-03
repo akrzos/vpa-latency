@@ -15,8 +15,8 @@ for node in $nodes; do
   echo "Labeling node $node as node-role.kubernetes.io/workload$index="
   oc label node $node node-role.kubernetes.io/workload$index=
   echo "Creating gohttp stress deployment for index $index"
-  deployment_index=$index envsubst < deployments/gohttp-stress.yml.tmpl > deployments/gohttp-stress-$index.yml
-  oc create -f deployments/gohttp-stress-$index.yml
-  rm deployments/gohttp-stress-$index.yml
+  deployment_index=$index envsubst < manifests/gohttp-stress.yml.tmpl > manifests/gohttp-stress-$index.yml
+  oc create -f manifests/gohttp-stress-$index.yml
+  rm manifests/gohttp-stress-$index.yml
   index=$((index + 1))
 done
