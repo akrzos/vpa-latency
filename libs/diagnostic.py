@@ -51,6 +51,10 @@ def gather_diagnostic_data(cliargs, report_dir, diagnostic_dir):
   diagnostic_data_dir = os.path.join(report_dir, diagnostic_dir)
   os.mkdir(diagnostic_data_dir)
 
+  # Get the VPAC
+  if diagnostic_dir == "post-test":
+    oc_gather("get", "VerticalPodAutoscalerController", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "yaml")
+
   # Get and describe the VPA
   oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir)
   oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir, "yaml")
@@ -73,8 +77,9 @@ def gather_diagnostic_data(cliargs, report_dir, diagnostic_dir):
       logger.error("vpa-latency, oc logs rc: {}".format(rc))
     with open(os.path.join(diagnostic_data_dir, "{}.log".format(pod["metadata"]["name"])), "w") as f:
       f.write(output)
-    rc, output = command(["oc", "logs", "-n", cliargs.namespace, pod["metadata"]["name"], "-p"], retries=3, no_log=True)
-    if rc != 0:
-      logger.error("vpa-latency, oc logs rc: {}".format(rc))
-    with open(os.path.join(diagnostic_data_dir, "{}.previous.log".format(pod["metadata"]["name"])), "w") as f:
-      f.write(output)
+    if diagnostic_dir == "post-test":
+      rc, output = command(["oc", "logs", "-n", cliargs.namespace, pod["metadata"]["name"], "-p"], retries=3, no_log=True)
+      if rc != 0:
+        logger.error("vpa-latency, oc logs rc: {}".format(rc))
+      with open(os.path.join(diagnostic_data_dir, "{}.previous.log".format(pod["metadata"]["name"])), "w") as f:
+        f.write(output)
