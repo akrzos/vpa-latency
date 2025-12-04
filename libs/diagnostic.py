@@ -22,7 +22,7 @@ import os
 logger = logging.getLogger("vpa-latency")
 
 
-def oc_gather(verb, resource, namespace, diagnostic_data_dir, cmd_out=None):
+def oc_gather(verb, resource, namespace, diagnostic_data_dir, file_name, cmd_out=None):
   cmd = ["oc", verb, resource, "-n", namespace]
   if cmd_out is not None:
     cmd.extend(["-o", cmd_out])
@@ -30,10 +30,7 @@ def oc_gather(verb, resource, namespace, diagnostic_data_dir, cmd_out=None):
   if rc != 0:
     logger.error(f"vpa-latency, oc {verb} {resource} rc: {rc}")
   else:
-    output_file = "{}.{}".format(resource, verb)
-    if cmd_out is not None:
-      output_file = "{}.{}.{}".format(resource, verb, cmd_out)
-    with open(os.path.join(diagnostic_data_dir, output_file), "w") as f:
+    with open(os.path.join(diagnostic_data_dir, file_name), "w") as f:
       f.write(output)
 
 
@@ -53,22 +50,27 @@ def gather_diagnostic_data(cliargs, report_dir, diagnostic_dir):
 
   # Get the VPAC
   if diagnostic_dir == "post-test":
-    oc_gather("get", "VerticalPodAutoscalerController", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "yaml")
+    oc_gather("get", "VerticalPodAutoscalerController", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "VerticalPodAutoscalerController.yaml", "yaml")
 
   # Get and describe the VPA
-  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir)
-  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir, "yaml")
-  oc_gather("describe", "vpa", cliargs.namespace, diagnostic_data_dir)
+  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir, "vpa")
+  oc_gather("get", "vpa", cliargs.namespace, diagnostic_data_dir, "vpa.yaml", "yaml")
+  oc_gather("describe", "vpa", cliargs.namespace, diagnostic_data_dir, "vpa.describe")
 
-  # Get and describe the pods
-  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir)
-  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir, "yaml")
-  oc_gather("describe", "po", cliargs.namespace, diagnostic_data_dir)
+  # Get and describe the pods for monitored namespace
+  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir, "pods.{}".format(cliargs.namespace))
+  oc_gather("get", "po", cliargs.namespace, diagnostic_data_dir, "pods.{}.yaml".format(cliargs.namespace), "yaml")
+  oc_gather("describe", "po", cliargs.namespace, diagnostic_data_dir, "pods.{}.describe".format(cliargs.namespace))
+
+  # Get and describe the pods for VPA operator namespace
+  oc_gather("get", "po", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "pods.openshift-vertical-pod-autoscaler")
+  oc_gather("get", "po", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "pods.openshift-vertical-pod-autoscaler.yaml", "yaml")
+  oc_gather("describe", "po", "openshift-vertical-pod-autoscaler", diagnostic_data_dir, "pods.openshift-vertical-pod-autoscaler.describe")
 
   # Get and describe the deployments
-  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir)
-  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir, "yaml")
-  oc_gather("describe", "deploy", cliargs.namespace, diagnostic_data_dir)
+  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir, "deployments.{}".format(cliargs.namespace))
+  oc_gather("get", "deploy", cliargs.namespace, diagnostic_data_dir, "deployments.{}.yaml".format(cliargs.namespace), "yaml")
+  oc_gather("describe", "deploy", cliargs.namespace, diagnostic_data_dir, "deployments.{}.describe".format(cliargs.namespace))
 
   # Get the logs for the pods
   for pod in po_data["items"]:
