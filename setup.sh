@@ -5,9 +5,6 @@ export KUBECONFIG=/root/vmno/kubeconfig
 # Namespace prefix for the gohttp stress deployments
 export namespace_prefix=vpa-gohttp-stress
 
-# Apply the VerticalPodAutoscalerController changes
-# oc apply -f vpac.yml
-
 nodes=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[*].metadata.name}')
 
 index=1

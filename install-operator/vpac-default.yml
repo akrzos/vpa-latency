@@ -1,0 +1,22 @@
+---
+apiVersion: autoscaling.openshift.io/v1
+kind: VerticalPodAutoscalerController
+metadata:
+  name: default
+  namespace: openshift-vertical-pod-autoscaler
+spec:
+  deploymentOverrides:
+    admission:
+      container:
+        resources: {}
+    recommender:
+      container:
+        resources: {}
+    updater:
+      container:
+        resources: {}
+  minReplicas: 2
+  podMinCPUMillicores: 25
+  podMinMemoryMb: 250
+  recommendationOnly: false
+  safetyMarginFraction: 0.15
