@@ -3,7 +3,7 @@
 export KUBECONFIG=/root/vmno/kubeconfig
 
 # Namespace prefix for the gohttp stress deployments
-export namespace_prefix=vpa-gohttp-stress
+export namespace_prefix=vpa-gohttp-stress1
 
 nodes=$(oc get nodes -l node-role.kubernetes.io/worker= -o jsonpath='{.items[*].metadata.name}')
 

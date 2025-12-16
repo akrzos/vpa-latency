@@ -3,11 +3,12 @@
 export KUBECONFIG=/root/vmno/kubeconfig
 
 # Namespace prefix for the gohttp stress deployments
-namespace_prefix=vpa-gohttp-stress
+namespace_prefix=vpa-gohttp-stress1
 
 measurement_time=300
 initial_api_wait=60
 stress_memory=20
+#stress_memory=6
 stress_timeout=120
 
 # 5s sleep time for 12 nodes (60s / 12 nodes = 5s between runs)
